@@ -1,3 +1,8 @@
+/**
+ *	- Team There are four of us (Noemi Moreno, Ethan Peck, James Ding, Davis Jackson), "Autonomous RC Car". Hackster.
+ *		URL: https://www.hackster.io/there-are-four-of-us/autonomous-rc-car-d71671
+ */
+
 #include <linux/module.h>
 #include <linux/of_device.h>
 #include <linux/kernel.h>
@@ -32,23 +37,24 @@ module_param(speed, long, S_IRUGO);
 //Maybe we can give this the S_IRUGO attribute and just read it in python?
 static int triggers = 0;
 
+/**
+ * @brief ISR for speed encoder readings
+ */
 static irqreturn_t encoder_isr(int irq, void *dev_id) {
     int enc_state = gpiod_get_value(enc_gpio);
 	
-	 // if(triggers == 100) {
-     curent_time = ktime_get_real_ns();
+	//get interval since last encoder reading
+    curent_time = ktime_get_real_ns();
     time_diff = curent_time - last_time;
     last_time = curent_time;
-    // }	
+		
+	//debouncing, discard intervals that are impossibly fast given our speed
     if(time_diff > 70000){
 	    speed = time_diff;
     }
     triggers++;
 	
-	// This should always be 0...
-	// But it's detecting some 1s
     printk("speed %ld\n", speed);
-
 
     // handled
     return IRQ_HANDLED;
@@ -58,10 +64,7 @@ static irqreturn_t encoder_isr(int irq, void *dev_id) {
  * @brief Called whenever user space code opens the character device
  * 	we don't need anything here
  */
-static int encoder_open(struct inode *inodep, struct file *filp) {
-	
-	//printk(KERN_INFO "wow!\n");
-	
+static int encoder_open(struct inode *inodep, struct file *filp) {	
     return 0;
 }
 
@@ -78,22 +81,18 @@ static int encoder_probe(struct platform_device *pdev) {
     ret = request_irq(irq_num, encoder_isr, IRQF_TRIGGER_FALLING, "encoder_isr", pdev);
     // Notify and free resources if  unable to request interrupt
     if (ret) {
-        printk("nightmare nightmare nightmare\n");
+        printk("failed to request irq\n");
     	gpiod_put(enc_gpio);
         return ret;
     }
 	
-	//How to debounce?
-	//Pi reads multiple triggers for every real triggers
-	//we could potentially not debounce and just deal with some error, not sure, will have to test this
-	
-	
-	//THIS FAILS WITH ERROR -524, i.e. debouncing not supported by processor????
+	//THIS FAILS WITH ERROR -524, i.e. debouncing not supported by processor
+	//gpiod_set_debounce
 	
     ret = gpiod_set_debounce(enc_gpio, 10000000);
 
 	
-	printk(KERN_INFO "wow cant believe it worked lol\n");
+	printk(KERN_INFO "Encoder module inserted\n");
 	
     return 0;
 }
@@ -109,7 +108,7 @@ static int encoder_remove(struct platform_device *pdev) {
     gpiod_put(enc_gpio);
 	
 
-	printk("byebye :( \n");
+	printk("Encoder module removed \n");
 	
     return 0;
 }
@@ -125,7 +124,7 @@ static struct platform_driver encoder_driver = {
     .probe = encoder_probe,
     .remove = encoder_remove,
     .driver = {
-        .name = "kms",
+        .name = "hi",
         .owner = THIS_MODULE,
         .of_match_table = of_match_ptr(match_to_devtree),
     },
