@@ -5,6 +5,9 @@ Pi and OpenCV”. Instructables. URL: https://www.instructables.com/Autonomous-L
 
  - Team There are four of us (Noemi Moreno, Ethan Peck, James Ding, Davis Jackson), "Autonomous RC Car". Hackster.
  URL: https://www.hackster.io/there-are-four-of-us/autonomous-rc-car-d71671
+ 
+Github Repo:
+ https://github.com/czhou101/lane_following_rc_car
 """
 
 import cv2
