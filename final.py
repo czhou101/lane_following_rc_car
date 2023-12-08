@@ -1,3 +1,12 @@
+"""
+References:
+ - User raja_961, “Autonomous Lane-Keeping Car Using Raspberry
+Pi and OpenCV”. Instructables. URL: https://www.instructables.com/Autonomous-Lane-Keeping-Car-Using-Raspberry-Pi-and/
+
+ - Team There are four of us (Noemi Moreno, Ethan Peck, James Ding, Davis Jackson), "Autonomous RC Car". Hackster.
+ URL: https://www.hackster.io/there-are-four-of-us/autonomous-rc-car-d71671
+"""
+
 import cv2
 import numpy as np
 import math
@@ -287,6 +296,8 @@ stop_cnt = 0
 stop = False
 last_stop = 0
 time_stop = 0
+stop_time = 0
+stop_flag = 0
 
 #Variables to be updated each loop
 lastTime = 0 
@@ -300,12 +311,9 @@ d_vals = []
 error_vals = []
 steer_voltage = []
 speed_voltage = []
-
 speeds = []
 
-stop_time = 0
-stop_flag = 0
-
+#variables for speed control
 curr_encoder_time = 0
 last_encoder_time = 0
 speed_frac = 400/660
@@ -315,71 +323,80 @@ max_counter = 100
 speed_neutral = int(65535*311/660)
 speed_forward = int(65535*400/660)
 mcp4728.channel_c.value = speed_forward#speed_neutral
+
+# *************************** MAIN LOOP ****************************
 while True:
     ret,frame = video.read()
-    # frame = cv2.flip(frame,-1)
-    #no speed adjusted for encoder YET
-    # ************************ SPEED CONTROL *****************************
     
+    
+    # ************************ SPEED CONTROL *****************************
     
     last_encoder_time = curr_encoder_time
     curr_encoder_time = read_speed()
-    #print(last_encoder_time - curr_encoder_time)
-    if(last_encoder_time - curr_encoder_time > 5000000):
+    
+    # Speed up or down based on whether encoder interval increased or decreased by a significant amt
+    # vs last interval
+    if(last_encoder_time - curr_encoder_time > 4000000):
         speed_frac = speed_frac * 1.005
         mcp4728.channel_c.value = int(65535 * speed_frac)
         print('accelerating')
-    elif(last_encoder_time - curr_encoder_time < -5000000):
+    elif(last_encoder_time - curr_encoder_time < -4000000):
         speed_frac = speed_frac * .995
-        if speed_frac < 400 / 660:
-            speed_frac = 400 / 660
         mcp4728.channel_c.value = int(65535 * speed_frac)
         print('decelerating')
 
+    # for plotting speed
     speed_voltage.append(int(65535*speed_frac))
 
-    
-    #speeds.append(speed)
-#    mcp4728.channel_c.value = int(65535*380/660)
 
 
-    #Calling the functions
+    # ********************** STEERING CONTROL *************************
+    # calculate error
     error  = compute_steering_deviation(frame)
     now = time.time() # current time variable
     dt = now - lastTime
     time_stop = now - last_stop
+    # Choose left vs right proportional constant
     if error < 0:
        Kp = 1300
     else:
        Kp = 500
+    # Derivative constant
     Kd = Kp*0.1
-    # Kd = 0
+    
+    # set PD
     derivative = Kd * (error - lastError) / dt
     proportional = Kp * error
 
+    # for plotting
     p_vals.append(proportional)
     d_vals.append(derivative)
     error_vals.append(error)
 
+    # Set cap and floor so we dont have too sharp turns
     PD = int(neutral + derivative + proportional)
     if PD < 25000:
         PD = 25000
     elif PD > 57000:
         PD = 57000
 
+    # Output steering voltage to DAC
     mcp4728.channel_b.value = PD
+    
+    #for plotting
     steer_voltage.append(PD)
 
-    # Stop detection
+    
+    #*************************** STOP DETECTION ******************************
     stop = check_for_stop_sign(frame)
+    #if red pixels detected in bottom 1/4 of frame, set flag
     if stop:
         stop_flag = 1
-        #print('flag set')
+    # start counting after flag set
     if stop_flag and stop_time == 0:
         stop_time = now
-    #print(stop_time - now) 
+    # stop for 2 seconds, 1 second after stop first detected
     if stop_flag and stop_cnt == 0 and now - stop_time > 1:
-        #print("first stop sign")
         mcp4728.channel_c.value = speed_neutral
         time.sleep(2)
         stop_cnt += 1
@@ -387,18 +404,18 @@ while True:
         last_stop = time.time()
         stop_time = 0
         stop_flag = 0
+    # exit after second stop
     elif stop_flag and stop_cnt == 1 and now - stop_time > 1:
-        print("second stop")
         mcp4728.channel_c.value = speed_neutral
         mcp4728.channel_b.value = int(65535*23/33)
         break
 
-   # print(PD)
+
     lastError = error
     lastTime = time.time()
     key = cv2.waitKey(1)
     
- #   print("key", key)
+    # exit w/ esc
     if key == 27:
         mcp4728.channel_c.value = speed_neutral
         # b channel controls direction
@@ -410,6 +427,7 @@ while True:
 
 video.release()
 
+# generate plots
 plot_pd(p_vals, d_vals, error_vals, True)
 plot_voltage(steer_voltage, speed_voltage, error_vals, True)
 np.save( 'speeds', np.array(speeds))
