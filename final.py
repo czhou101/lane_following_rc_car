@@ -340,11 +340,11 @@ while True:
     # Speed up or down based on whether encoder interval increased or decreased by a significant amt
     # vs last interval
     if(last_encoder_time - curr_encoder_time > 4000000):
-        speed_frac = speed_frac * 1.005
+        speed_frac = speed_frac * 1.01
         mcp4728.channel_c.value = int(65535 * speed_frac)
         print('accelerating')
     elif(last_encoder_time - curr_encoder_time < -4000000):
-        speed_frac = speed_frac * .995
+        speed_frac = speed_frac * .99
         mcp4728.channel_c.value = int(65535 * speed_frac)
         print('decelerating')
 
@@ -361,7 +361,7 @@ while True:
     time_stop = now - last_stop
     # Choose left vs right proportional constant
     if error < 0:
-       Kp = 1300
+       Kp = 1400
     else:
        Kp = 500
     # Derivative constant
